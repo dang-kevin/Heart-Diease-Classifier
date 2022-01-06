@@ -43,7 +43,9 @@ The second classifier is k-nearest neighbours (KNN). This method takes the k nea
 The third method for classification is a classification tree (also known as a decision tree). Classification trees use binary recursive partitioning, where the data is partitioned in an iterative manner at each node. A node is where the branch of a tree splits into two parts, and the terminal nodes are called leaves. These leaves are assigned class membership probabilities which can be used to classify new data. After the classification tree was trained, a technique called pruning was used to remove the least important branches as the model can be quite complex which leads to overfitting. When pruning the tree, a parameter called `best` (size or number of terminal nodes of a subtree to be returned) was passed into the function in order to specify the size of pruned tree. The best size was determined via ten-fold cross-validation (Appendix: Table \ref{tab:size} & Figure \ref{fig:size}).
 
 
-```{r, include=F}
+```{r library, include=F}
+
+# Load packages and set theme
 library(tidyverse)
 library(caret)
 library(glmnet)
@@ -57,7 +59,9 @@ library(reshape2)
 theme_set(theme_bw())
 ```
 
-```{r, include=F}
+```{r load, include=F}
+
+# Load data, rename variables and use complete cases
 cleveland <- read.csv("cleveland.txt", header = F, na.strings = "?")
 
 data <- cleveland %>%
@@ -70,7 +74,9 @@ data <- cleveland %>%
   na.omit()
 ```
 
-```{r, echo=F}
+```{r tabdata, echo=F}
+
+# Variable description
 variables <- colnames(data)
 
 description <- c("age in years", 
@@ -95,7 +101,9 @@ cbind(variables,description) %>%
 ```
 
 \newpage
-```{r, echo=F, results="asis"}
+```{r tabdata2, echo=F, results="asis"}
+
+# Detailed summary of data
 summary <-
   list("Age" = 
          list("Median (IQR)" = ~ median_iqr(age, digits = 0)
@@ -170,7 +178,11 @@ cbind(whole,by_num) %>%
 
 # Results
 
-```{r, include=F}
+```{r analysis, include=F}
+
+### Analysis ###
+
+# Set seed for reproducibility 
 set.seed(8)
 
 # Scale data for KNN
@@ -189,6 +201,7 @@ tree.acc <- rep(NA,5)
 
 # Repeat 5 times with different train/test split sets
 for (i in 1:5){
+  
   # Split the data into training and test set
   training.samples <- data$num %>% 
     createDataPartition(p = 0.8, list = FALSE)
@@ -287,7 +300,7 @@ accuracy.df <- data.frame(run, lr.acc, knn.acc, tree.acc)
 
 In Figure \ref{fig:acc}, the accuracy rates of the three classification methods for the five independent runs are shown. In four out of five runs, LASSO-penalized logistic regression had the highest accuracy rate, making it the preferred classifier among the three options. The k-nearest neighbour classifier had the joint highest accuracy in Run 3 and had the second highest accuracy in three of five runs. The classification tree scored the highest in Run 1 but had the lowest accuracy in the remaining four runs. In the Appendix, Table \ref{tab:acc} contains the accuracy rates for each run and Table \ref{tab:acc2} summarizes the overall results by taking the average accuracy rates of the three methods. Logistic regression with LASSO regularization is the clear winner, followed by k-nearest neighbour and finally classification tree in last place.
 
-```{r, echo=F, fig.width=8, fig.cap="\\label{fig:acc}Accuracy rates for the three classification methods"}
+```{r figacc, echo=F, fig.width=8, fig.cap="\\label{fig:acc}Accuracy rates for the three classification methods"}
 accuracy.df %>%
   rename(Logistic = lr.acc, KNN = knn.acc, Tree = tree.acc) %>%
   melt(id.vars = c("run"), variable.name = c("classifier"), value.name = "accuracy") %>%
@@ -300,7 +313,10 @@ accuracy.df %>%
        color = "Classifier")
 ```
 
-```{r, include=F}
+Based on the assessment of the performance of the three classification methods, a LASSO-penalized logistic regression model was then trained to be used for classification of future observations. Previously, the data was split into training and test sets, however this model was trained on the entire data set because it will be used to predict on future observations which can be treated as our test set, as the model has not seen this new data. The coefficients of the predictors are shown in Table \ref{tab:lasso} below. It is interesting to note that the coefficients of the predictors `age`, `cp3`, `slope3` and `thal6` have been shrunk to zero. There are also several coefficients that are close to zero, most notably  `trestbps`, `chol`, `restecg1`, `thalach`. The descriptions for these variables can be found in Table \ref{tab:data}. 
+
+\newpage
+```{r tablasso, echo=F}
 # Training a lasso-penalized logistic regression model for classification of future observations 
 # We do not have the future observations yet, which means our training data is the entire data set.
 
@@ -315,13 +331,8 @@ lr.final <- cv.glmnet(x, y, alpha = 1, family = "binomial")
 # Can also use glmnet with the lambda.min parameter obtained from cv.glmnet
 # lr.mod.final <- glmnet(x, y, alpha = 1, family = "binomial",
 #                   lambda = lasso.cv.final$lambda.min)
-```
 
-
-Based on the assessment of the performance of the three classification methods, a LASSO-penalized logistic regression model was then trained to be used for classification of future observations. Previously, the data was split into training and test sets, however this model was trained on the entire data set because it will be used to predict on future observations which can be treated as our test set, as the model has not seen this new data. The coefficients of the predictors are shown in Table \ref{tab:lasso} below. It is interesting to note that the coefficients of the predictors `age`, `cp3`, `slope3` and `thal6` have been shrunk to zero. There are also several coefficients that are close to zero, most notably  `trestbps`, `chol`, `restecg1`, `thalach`. The descriptions for these variables can be found in Table \ref{tab:data}. 
-
-\newpage
-```{r, echo=F}
+# Table of coefficients
 coef(lr.final, s = "lambda.min") %>%
   round(3) %>%
   as.matrix() %>%
@@ -344,7 +355,9 @@ In the field of medicine, there are important considerations that may affect how
 
 ## Tables
 
-```{r, echo=F}
+```{r tablambda, echo=F}
+
+# Table of minimum lambdas
 data.frame(Lambda = round(lasso.lambda, 3)) %>%
   rownames_to_column() %>%
   pivot_longer(-rowname, names_to = "Run") %>%
@@ -353,7 +366,9 @@ data.frame(Lambda = round(lasso.lambda, 3)) %>%
         align = "c") 
 ```
 
-```{r, echo=F}
+```{r tabk, echo=F}
+
+# Table of optimal k
 data.frame(k = knn.k) %>%
   rownames_to_column() %>%
   pivot_longer(-rowname, names_to = "Run") %>%
@@ -362,7 +377,9 @@ data.frame(k = knn.k) %>%
         align = "c") 
 ```
 
-```{r, echo=F}
+```{r tabsize, echo=F}
+
+# Table of best tree size
 data.frame(Size = tree.size) %>%
   rownames_to_column() %>%
   pivot_longer(-rowname, names_to = "Run") %>%
@@ -371,7 +388,9 @@ data.frame(Size = tree.size) %>%
         align = "c") 
 ```
 
-```{r, echo=F}
+```{r tabacc, echo=F}
+
+# Accuracy rates
 accuracy.df %>%
   round(3) %>%
   kable(caption = "\\label{tab:acc}Accuracy rates for the three classification methods",
@@ -379,7 +398,9 @@ accuracy.df %>%
         align = "c")
 ```
 
-```{r, echo=F}
+```{r tabacc2, echo=F}
+
+# Average accuracy rates
 accuracy.df %>% 
   select(-run) %>%
   summarize_all(mean) %>%
@@ -391,7 +412,9 @@ accuracy.df %>%
 
 ## Figures
 
-```{r, echo=F, fig.width=8, fig.cap="\\label{fig:lambda}Finding the minimum $\\lambda$ with ten-fold cross-validation (Run 5)"}
+```{r figlambda, echo=F, fig.width=8, fig.cap="\\label{fig:lambda}Finding the minimum $\\lambda$ with ten-fold cross-validation (Run 5)"}
+
+# Minimum lambda - cross validation
 lasso.df <- with(lr.lasso.cv, data.frame(lambda = lambda, MSE = cvm, 
                                       MSEhi = cvup, MSElow = cvlo))
 
@@ -408,7 +431,9 @@ lasso.df %>%
        y = "Binomial Deviance")
 ```
 
-```{r, echo=F, fig.width=8, fig.cap="\\label{fig:k}Finding the optimal k with leave-one-out cross-validation (Run 5)"}
+```{r figk, echo=F, fig.width=8, fig.cap="\\label{fig:k}Finding the optimal k with leave-one-out cross-validation (Run 5)"}
+
+# Optimal k - cross validation
 data.frame(k = 1:30,accuracy) %>%
   ggplot(aes(x = k, y = accuracy)) +
   geom_point(color = "darkgreen") +
@@ -419,7 +444,9 @@ data.frame(k = 1:30,accuracy) %>%
        y = "Accuracy")
 ```
 
-```{r, echo=F, fig.width=8, fig.cap="\\label{fig:size}Finding the best size with ten-fold cross-validation (Run 5)"}
+```{r figsize, echo=F, fig.width=8, fig.cap="\\label{fig:size}Finding the best size with ten-fold cross-validation (Run 5)"}
+
+# Best size - cross validation
 data.frame(Size = tree.cv$size, Deviance = tree.cv$dev) %>%
   ggplot(aes(x = Size, y = Deviance)) +
   geom_point(color = "blue") +
